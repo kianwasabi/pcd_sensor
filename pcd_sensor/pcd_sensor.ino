@@ -7,18 +7,22 @@
 #define ECHO_PIN  12                   // Ultrasonic sensor echo pin
 #define BAUD_RATE 9600
 #define CAN_SAMPLE_RATE CAN_500KBPS   // CAN bus speed
-
+#define SPEED_OF_SOUND 0.0343          // Speed of sound in cm/microsecond
 
 const unsigned long can_id = 0x200;    // CAN Device address
 const int can_dlc = 2;                 // CAN message data length (number of bytes in frame)
 uint8_t data[can_dlc];                 // CAN message payload
 
-mcp2515_can CAN(CAN_HAT_CS_PIN);
+mcp2515_can CAN(CAN_HAT_CS_PIN);      // CAN Bus object
 
 void setup() {
+  // initialize Sensors' TRIG_PIN pin as an output.
   pinMode(TRIG_PIN, OUTPUT);
+  // initialize Sensors' ECHO_PIN pin as an input.
   pinMode(ECHO_PIN, INPUT);
+  // initialize CAN Bus
   CAN.begin(CAN_SAMPLE_RATE);
+  // initialize Serial port
   Serial.begin(BAUD_RATE);
 }
 
@@ -28,17 +32,21 @@ int measure_distance()
   digitalWrite(TRIG_PIN, LOW); 
   delay(5);
 
-  // trigger the sensor
+  // trigger the sensor by sending a HIGH pulse of 10 microseconds
   digitalWrite(TRIG_PIN, HIGH); 
   delayMicroseconds(10); 
   digitalWrite(TRIG_PIN, LOW);  
 
-  // PulseIn -> measure time until signal comes back
+  // Measure the duration (in ms): 
+  // Duration represents the time it took for the signal to travel to the object and back to the sensor.
   long duration = pulseIn(ECHO, HIGH);  
-  Serial.println(duration);
-  // Calculate the distance (in cm) based on the speed of sound.  
-  unsigned long distance = (duration / 2) * 0.03432; 
-  Serial.println(duration);
+  // Calculate the distance (in cm): 
+  // First dividing the duration (in ms) by two to get the time it took for the signal to travel from the object back to the sensor. 
+  // Than multiply the singals' one-way time by the speed of sound in cm/ms.
+  unsigned long distance = (duration / 2) * SPEED_OF_SOUND; 
+  Serial.print(distance);
+  Serial.println("cm");
+
   return distance;
 }
 
