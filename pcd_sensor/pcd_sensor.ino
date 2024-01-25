@@ -27,12 +27,11 @@ NewPing sonar[SONAR_NUM] = {                  // Sensor object array with each s
   NewPing(SENSOR_2_TRIG_PIN, SENSOR_2_ECHO_PIN, MAX_DISTANCE), 
 };
 // can 
-const unsigned long can_id = 0x200;    // CAN Device address
-//const int can_dlc = 3;                 // CAN message data length (number of bytes in frame)
-//const int  ext_frame = 0;                // extended can frame
-//const int len_frame = SONAR_NUM; 
-uint8_t data_buffer[SONAR_NUM*sizeof(cm)];                 // CAN message payload with buffer can_dlc = SONAR_NUM
-mcp2515_can CAN(CAN_HAT_CS_PIN);       // CAN Bus object
+const unsigned long can_id = 0x200;             // CAN Device address
+const int  ext_frame = 0;                       // extended can frame
+const int len_frame = SONAR_NUM*sizeof(short);  // CAN message data length (number of bytes in frame)
+uint8_t data_buf[len_frame];                    // CAN message payload with buffer can_dlc = SONAR_NUM
+mcp2515_can CAN(CAN_HAT_CS_PIN);                // CAN Bus object
 
 void setup() {
   Serial.begin(BAUD_RATE);
@@ -73,7 +72,7 @@ void loop() {
     }
   }
   // Other code that *DOESN'T* analyze ping results.
-  Serial.println(sizeof(data_buffer));
+  Serial.println(sizeof(data_buf));
 }
 
 /* If ping received, set the sensor distance to array. */
@@ -84,13 +83,15 @@ void echoCheck() {
 
 /* Sensor ping cycle complete, do something with the results. */
 void oneSensorCycle() { 
-  for (uint8_t i = 0; i < SONAR_NUM; i++) {
-    // values in buffer
-    data_buffer[i] = (cm[i] >> 8) & 0xFF;
-    data_buffer[i+1] = cm[i] & 0xFF; 
-  }       
-  // can_id, extended_frame, frame_length(in bytes), data_buffer (byte array)
-  //CAN.sendMsgBuf(can_id, 0, len_frame, data_buf);
-
+  // for (uint8_t i = 0; i < SONAR_NUM; i++) {
+  // }      
+  data_buf[0] = highByte(cm[0]);
+  data_buf[1] = lowByte(cm[0]);
+  data_buf[2] = highByte(cm[1]);
+  data_buf[3] = lowByte(cm[1]);
+  data_buf[4] = highByte(cm[2]);
+  data_buf[5] = lowByte(cm[2]); 
+  // send CAN message
+  CAN.sendMsgBuf(can_id, ext_frame, len_frame, data_buf);
   delay(100);                      
 }
