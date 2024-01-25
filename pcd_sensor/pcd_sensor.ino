@@ -1,66 +1,89 @@
-#include <can-serial.h>
+#include <NewPing.h>
+//#include <can-serial.h>
 #include <mcp2515_can.h>
-#include <mcp_can.h>
-
-#define CAN_HAT_CS_PIN 9               // CAN HAT Pin
-#define TRIG_PIN  13                   // Ultrasonic sensor trigger pin
-#define ECHO_PIN  12                   // Ultrasonic sensor echo pin
-#define BAUD_RATE 9600
+//#include <mcp_can.h>
+// serial monitor 
+#define BAUD_RATE 115200
+// sonar 
+#define SONAR_NUM     3 // Number of sensors.
+#define MAX_DISTANCE 400 // Maximum distance (in cm) to ping.
+#define PING_INTERVAL 33 // Milliseconds between sensor pings (29ms is about the min to avoid cross-sensor echo).
+// can
 #define CAN_SAMPLE_RATE CAN_500KBPS   // CAN bus speed
-#define SPEED_OF_SOUND 0.0343          // Speed of sound in cm/microsecond
-
+// pins 
+#define CAN_HAT_CS_PIN 9
+#define SENSOR_0_TRIG_PIN 7           
+#define SENSOR_0_ECHO_PIN 7
+#define SENSOR_1_TRIG_PIN 6
+#define SENSOR_1_ECHO_PIN 6
+#define SENSOR_2_TRIG_PIN 5
+#define SENSOR_2_ECHO_PIN 5
+// sonar
+unsigned long pingTimer[SONAR_NUM]; // Holds the times when the next ping should happen for each sensor.
+unsigned int cm[SONAR_NUM];         // Where the ping distances are stored.
+uint8_t currentSensor = 0;          // Keeps track of which sensor is active.
+NewPing sonar[SONAR_NUM] = {     // Sensor object array with each sensor's trigger pin, echo pin, and max distance to ping.
+  NewPing(SENSOR_0_TRIG_PIN, SENSOR_0_ECHO_PIN, MAX_DISTANCE), 
+  NewPing(SENSOR_1_TRIG_PIN, SENSOR_1_ECHO_PIN, MAX_DISTANCE), 
+  NewPing(SENSOR_2_TRIG_PIN, SENSOR_2_ECHO_PIN, MAX_DISTANCE), 
+};
+// can 
 const unsigned long can_id = 0x200;    // CAN Device address
-const int can_dlc = 2;                 // CAN message data length (number of bytes in frame)
+const int can_dlc = 3;                 // CAN message data length (number of bytes in frame)
 uint8_t data[can_dlc];                 // CAN message payload
-
-mcp2515_can CAN(CAN_HAT_CS_PIN);      // CAN Bus object
+mcp2515_can CAN(CAN_HAT_CS_PIN);       // CAN Bus object
 
 void setup() {
-  // initialize Sensors' TRIG_PIN pin as an output.
-  pinMode(TRIG_PIN, OUTPUT);
-  // initialize Sensors' ECHO_PIN pin as an input.
-  pinMode(ECHO_PIN, INPUT);
-  // initialize CAN Bus
   CAN.begin(CAN_SAMPLE_RATE);
-  // initialize Serial port
   Serial.begin(BAUD_RATE);
+  pingTimer[0] = millis() + 75;           // First ping starts at 75ms, gives time for the Arduino to chill before starting.
+  for (uint8_t i = 1; i < SONAR_NUM; i++) {// Set the starting time for each sensor.
+    pingTimer[i] = pingTimer[i - 1] + PING_INTERVAL;
+  }
 }
 
-int measure_distance() 
-{ 
-  // shut down the trigger pin to avoide interference 
-  digitalWrite(TRIG_PIN, LOW); 
-  delay(5);
-
-  // trigger the sensor by sending a HIGH pulse of 10 microseconds
-  digitalWrite(TRIG_PIN, HIGH); 
-  delayMicroseconds(10); 
-  digitalWrite(TRIG_PIN, LOW);  
-
-  // Measure the duration (in ms): 
-  // Duration represents the time it took for the signal to travel to the object and back to the sensor.
-  long duration = pulseIn(ECHO, HIGH);  
-  // Calculate the distance (in cm): 
-  // First dividing the duration (in ms) by two to get the time it took for the signal to travel from the object back to the sensor. 
-  // Than multiply the singals' one-way time by the speed of sound in cm/ms.
-  unsigned long distance = (duration / 2) * SPEED_OF_SOUND; 
-  Serial.print(distance);
-  Serial.println("cm");
-
-  return distance;
+void loop() {
+  // Loop through all the sensors.
+  for (uint8_t i = 0; i < SONAR_NUM; i++) { 
+    // Is it this sensor's time to ping?
+    if (millis() >= pingTimer[i]) {         
+      // Set next time this sensor will be pinged.
+      pingTimer[i] += PING_INTERVAL * SONAR_NUM;  
+      // Sensor ping cycle complete, do something with the results.
+      if (i == 0 && currentSensor == SONAR_NUM - 1){  
+        oneSensorCycle();
+      } 
+      // Make sure previous timer is canceled before starting a new ping (insurance).
+      sonar[currentSensor].timer_stop();  
+      // Sensor being accessed.        
+      currentSensor = i;              
+      // Make distance zero in case there's no ping echo for this sensor.            
+      cm[currentSensor] = 0;                      
+      // Do the ping (processing continues, interrupt will call echoCheck to look for echo).
+      sonar[currentSensor].ping_timer(echoCheck); 
+    }
+  }
+  // Other code that *DOESN'T* analyze ping results.
 }
 
-void send_to_can(long distance) {
-  // shift 8 bits to the right and mask with 0xFF to get the first byte
-  data[0] = (distance >> 8) & 0xFF; 
-  // mask with 0xFF to get the second byte     
-  data[1] = distance & 0xFF;          
-  // send to CAN Bus   
-  CAN.sendMsgBuf(can_id, CAN_STDID ,can_dlc, data);
+/* If ping received, set the sensor distance to array. */
+void echoCheck() { 
+  if (sonar[currentSensor].check_timer())
+    cm[currentSensor] = sonar[currentSensor].ping_result / US_ROUNDTRIP_CM;   
 }
 
-void loop()  {
-  long distance = measure_distance();
-  send_to_can(distance);
-  delay(100);
- }
+/* Sensor ping cycle complete, do something with the results. */
+void oneSensorCycle() { 
+  for (uint8_t i = 0; i < SONAR_NUM; i++) {
+    // Printing lines
+        Serial.print("Sensor");
+        Serial.print(i);
+        Serial.print(":");
+        Serial.println(cm[i]);
+    // Sending bytes to CAN 
+        // byte reading_high = highByte(cm[i]);
+        // byte reading_low = lowByte(cm[i]);
+        // byte packet[]={0x59,0x59,i,reading_high,reading_low};
+        // Serial.write(packet, sizeof(packet));
+  }
+}
