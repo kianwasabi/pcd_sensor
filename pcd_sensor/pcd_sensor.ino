@@ -1,7 +1,6 @@
 #include <NewPing.h>
-//#include <can-serial.h>
+#include <SPI.h>
 #include <mcp2515_can.h>
-//#include <mcp_can.h>
 // serial monitor 
 #define BAUD_RATE 115200
 // sonar 
@@ -19,25 +18,35 @@
 #define SENSOR_2_TRIG_PIN 5
 #define SENSOR_2_ECHO_PIN 5
 // sonar
-unsigned long pingTimer[SONAR_NUM]; // Holds the times when the next ping should happen for each sensor.
-unsigned int cm[SONAR_NUM];         // Where the ping distances are stored.
-uint8_t currentSensor = 0;          // Keeps track of which sensor is active.
-NewPing sonar[SONAR_NUM] = {     // Sensor object array with each sensor's trigger pin, echo pin, and max distance to ping.
+unsigned long pingTimer[SONAR_NUM];           // Holds the times when the next ping should happen for each sensor.
+unsigned short cm[SONAR_NUM];                 // Where the ping distances are stored.
+uint8_t currentSensor = 0;                    // Keeps track of which sensor is active.
+NewPing sonar[SONAR_NUM] = {                  // Sensor object array with each sensor's trigger pin, echo pin, and max distance to ping.
   NewPing(SENSOR_0_TRIG_PIN, SENSOR_0_ECHO_PIN, MAX_DISTANCE), 
   NewPing(SENSOR_1_TRIG_PIN, SENSOR_1_ECHO_PIN, MAX_DISTANCE), 
   NewPing(SENSOR_2_TRIG_PIN, SENSOR_2_ECHO_PIN, MAX_DISTANCE), 
 };
 // can 
 const unsigned long can_id = 0x200;    // CAN Device address
-const int can_dlc = 3;                 // CAN message data length (number of bytes in frame)
-uint8_t data[can_dlc];                 // CAN message payload
+//const int can_dlc = 3;                 // CAN message data length (number of bytes in frame)
+//const int  ext_frame = 0;                // extended can frame
+//const int len_frame = SONAR_NUM; 
+uint8_t data_buffer[SONAR_NUM*sizeof(cm)];                 // CAN message payload with buffer can_dlc = SONAR_NUM
 mcp2515_can CAN(CAN_HAT_CS_PIN);       // CAN Bus object
 
 void setup() {
-  CAN.begin(CAN_SAMPLE_RATE);
   Serial.begin(BAUD_RATE);
-  pingTimer[0] = millis() + 75;           // First ping starts at 75ms, gives time for the Arduino to chill before starting.
-  for (uint8_t i = 1; i < SONAR_NUM; i++) {// Set the starting time for each sensor.
+  while(!Serial){};
+  while (CAN_OK != CAN.begin(CAN_SAMPLE_RATE)) {
+    Serial.println("CAN BUS Shield init fail");
+    Serial.println(" Init CAN BUS Shield again");
+    delay(100);
+    }
+  Serial.println("CAN BUS Shield init ok!");
+  // First ping starts at 75ms, gives time for the Arduino to chill before starting.
+  pingTimer[0] = millis() + 75;         
+  // Set the starting time for each sensor.  
+  for (uint8_t i = 1; i < SONAR_NUM; i++) {
     pingTimer[i] = pingTimer[i - 1] + PING_INTERVAL;
   }
 }
@@ -64,6 +73,7 @@ void loop() {
     }
   }
   // Other code that *DOESN'T* analyze ping results.
+  Serial.println(sizeof(data_buffer));
 }
 
 /* If ping received, set the sensor distance to array. */
@@ -75,15 +85,12 @@ void echoCheck() {
 /* Sensor ping cycle complete, do something with the results. */
 void oneSensorCycle() { 
   for (uint8_t i = 0; i < SONAR_NUM; i++) {
-    // Printing lines
-        Serial.print("Sensor");
-        Serial.print(i);
-        Serial.print(":");
-        Serial.println(cm[i]);
-    // Sending bytes to CAN 
-        // byte reading_high = highByte(cm[i]);
-        // byte reading_low = lowByte(cm[i]);
-        // byte packet[]={0x59,0x59,i,reading_high,reading_low};
-        // Serial.write(packet, sizeof(packet));
-  }
+    // values in buffer
+    data_buffer[i] = (cm[i] >> 8) & 0xFF;
+    data_buffer[i+1] = cm[i] & 0xFF; 
+  }       
+  // can_id, extended_frame, frame_length(in bytes), data_buffer (byte array)
+  //CAN.sendMsgBuf(can_id, 0, len_frame, data_buf);
+
+  delay(100);                      
 }
