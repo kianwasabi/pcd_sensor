@@ -29,7 +29,7 @@ NewPing sonar[SONAR_NUM] = {                  // Sensor object array with each s
 // can 
 const unsigned long can_id = 0x200;             // CAN Device address
 const int  ext_frame = 0;                       // extended can frame
-const int len_frame = SONAR_NUM*sizeof(short);  // CAN message data length (number of bytes in frame)
+const int len_frame = SONAR_NUM*sizeof(unsigned short);  // CAN message data length (number of bytes in frame)
 uint8_t data_buf[len_frame];                    // CAN message payload with buffer can_dlc = SONAR_NUM
 mcp2515_can CAN(CAN_HAT_CS_PIN);                // CAN Bus object
 
@@ -71,8 +71,6 @@ void loop() {
       sonar[currentSensor].ping_timer(echoCheck); 
     }
   }
-  // Other code that *DOESN'T* analyze ping results.
-  Serial.println(sizeof(data_buf));
 }
 
 /* If ping received, set the sensor distance to array. */
@@ -83,15 +81,28 @@ void echoCheck() {
 
 /* Sensor ping cycle complete, do something with the results. */
 void oneSensorCycle() { 
+  // print sensor data to serial monitor in dec 
   // for (uint8_t i = 0; i < SONAR_NUM; i++) {
+  //   Serial.print(i); 
+  //   Serial.print(":");
+  //   Serial.println(cm[i]);
   // }      
+  // load data_buf with sensor data
   data_buf[0] = highByte(cm[0]);
   data_buf[1] = lowByte(cm[0]);
   data_buf[2] = highByte(cm[1]);
   data_buf[3] = lowByte(cm[1]);
   data_buf[4] = highByte(cm[2]);
   data_buf[5] = lowByte(cm[2]); 
-  // send CAN message
-  CAN.sendMsgBuf(can_id, ext_frame, len_frame, data_buf);
-  delay(100);                      
+  //print to serial monitor in hex
+  Serial.println("-----------------------------");
+  Serial.print("Set data from ID: 0x");
+  Serial.println(can_id, HEX);
+  for (int i = 0; i < len_frame; i++) { 
+    Serial.print(data_buf[i], HEX);
+    Serial.print("\t");
+  }
+  Serial.println();
+  //send CAN message
+  CAN.sendMsgBuf(can_id, ext_frame, len_frame, data_buf);                   
 }
