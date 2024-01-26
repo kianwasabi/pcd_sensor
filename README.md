@@ -17,28 +17,12 @@ Source: [Ultrasound Sensor Array with the HC-SR04](https://www.hackster.io/user0
 
 ## System
 ### Hardware 
-- SRF05 Ultrasonic Sensor: 
-    - Range: 1 cm - 4 m.
-    - Frq: 40 kHz.
-    - Modi: 
-        - Single Pin for Trigger and Echo
-        - 2 Pin SRF04-kompatibel.
-    - Entry-Trigger: 10uS Min. TTL impuls
-    - Echoimpuls is a positiv TTL signal, with those width is proportional to the object area.
-    https://exp-tech.de/products/srf05-low-cost-ultrasonic-ranger
-    https://www.robot-electronics.co.uk/htm/srf05tech.htm
-
+- [SRF05 Ultrasonic Sensor](https://exp-tech.de/products/srf05-low-cost-ultrasonic-ranger) [or](https://www.robot-electronics.co.uk/htm/srf05tech.htm)
 - Arduino Uno
-- CAN HAT:
-    - CAN-BUS Shield V2.0
+- [CAN-BUS_Shield_V2.0](https://wiki.seeedstudio.com/CAN-BUS_Shield_V2.0/)
 ### Wiring
 
-Pin 7,6,5 are free to use for the sensors. 
-
-https://wiki.seeedstudio.com/CAN-BUS_Shield_V2.0/
-
-## CAN Messages
-
+## CAN Frame
 ```bash 
 Set data from ID: 0x200
 0	A3	0	8	0	A4	
