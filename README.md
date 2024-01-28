@@ -20,14 +20,21 @@ Source: [Ultrasound Sensor Array with the HC-SR04](https://www.hackster.io/user0
 - [SRF05 Ultrasonic Sensor](https://www.robot-electronics.co.uk/htm/srf05tech.htm)
 - [Arduino Uno R3](https://eckstein-shop.de/HIMALAYAbasicUNOR3ATmega328PBoardATmega16U2mitUSBKabelArduinoUnoR3kompatibelEN)
 - [CAN-BUS_Shield_V2.0](https://wiki.seeedstudio.com/CAN-BUS_Shield_V2.0/)
+
 ### Wiring
+The SRF05 sensors operate in Mode 2 (Single pin for both Trigger and Echo). <br>
+The brigded sensor pins can be connected to a as "FREE labled pin of the CAN HAT. <br>
+![T](https://files.seeedstudio.com/wiki/CAN_BUS_Shield/image/PINMAP.png)
 
 ## CAN Frame
-The maximum distance that can be measured is 400cm. Therfore we need 2 bytes in the CAN frames' payload for each sensor. <br>
+The maximum distance that can be measured is 400cm. <br> 
+Therfore we need 2 bytes in the CAN frames' payload for each sensor. <br>
 The can frame is structured as follows: <br>
-byte 0 - 1: Sensor 0 <br>
-byte 2 - 3: Sensor 1 <br>
-byte 4 - 5: Sensor 2 <br>
+
+Byte 0 - 1: Sensor 0 <br>
+Byte 2 - 3: Sensor 1 <br>
+Byte 4 - 5: Sensor 2 <br>
+
 ```bash 
 Set data from ID: 0x200
 0	A3	0	8	0	A4	
